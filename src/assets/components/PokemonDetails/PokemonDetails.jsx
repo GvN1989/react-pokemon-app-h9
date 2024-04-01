@@ -1,36 +1,73 @@
-import React from "react";
+import React, {useEffect, useState} from "react";
+import axios from "axios";
 
 
-function PokemonDetails ({pokemon}) {
+function PokemonDetails ({endpoint}) {
 
-    if (!pokemon) {
-        return <div> Loading...</div>;
+    const [pokemon, setPokemon] = useState({});
+    const [loading, toggleLoading] = useState(false);
+    const [error, toggleError] = useState(false);
+
+    useEffect(() => {
+        const controller = new AbortController();
+
+        async function fetchData() {
+            toggleLoading(true);
+            toggleError(false);
+
+            try {
+                const {data} = await axios.get(endpoint, {
+                    signal: controller.signal
+                });
+                setPokemon(data);
+            } catch (error) {
+                if (axios.isCancel(error)) {
+                    console.error('Request is canceled...');
+                } else {
+                    console.error(error);
+                    toggleError(true);
+                }
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+    if (endpoint) {
+        fetchData();
     }
 
-    const {name, sprites, moves, weight, abilities} = pokemon;
+    return () => {
+        console.log("Unmount effect is triggered");
+        controller.abort();
+    }
+
+}, []);
+
 
     return (
-        <div className="pokemon-card">
-            <h2> {name}</h2>
-            {sprites && (
-                <img className="pokemon-image" src={sprites.front_default} alt="pokemon image"/>
-            )}
-            {moves && (
-                <p>Moves : {moves.length}</p>
-            )}
-            {weight && (
-                <p>Weight: {weight}</p>
-            )}
-            {abilities && (
-                <div>
-                    <p> Abilities: </p>
-                    <ul>
-                        {Array.isArray(abilities) && abilities.map((ability, index) => (
-                            <li key={index}> {ability.ability.name} </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-        </div> );
+        <article className="pokemon-card">
+            {console.log("Rerender is triggered")}
+            {Object.keys(pokemon).length>0 &&
+            <>
+                <h2> {pokemon.name}</h2>
+                <img
+                    alt="pokemon image"
+                    src={pokemon.sprites.front_default}
+                    />
+                <p> <strong>Moves: </strong> {pokemon.moves.length}</p>
+                <p> <strong>Weight: </strong>{pokemon.weight}</p>
+                <p> <strong>Abilities:</strong> </p>
+                <ul>
+                    {pokemon.abilities.map ((ability) => {
+                        <li key={`${ability.ability.name}-${pokemon.name}`}>
+                            {ability.ability.name}
+                        </li> }
+                    )
+                    })
+                </ul>
+            </>}
+            {loading && <p>Loading....</p>}
+            {Object.keys(pokemon).length === 0 && error && <p> Er ging iets mis bij het laden van deze Pokemon...</p>}
+        </article> );
 }
 export default PokemonDetails;

@@ -6,93 +6,74 @@ import Button from "./assets/components/Button/Button.jsx";
 
 function App() {
 
-    const [pokemonList, setPokemonList] = useState([]);
-    const [currentPage, setCurrentPage] = useState ( () => {
-    const storedPage = localStorage.getItem ('currentPage');
-    return storedPage ? parseInt(storedPage): 1;
-    });
-
-    const [totalPages, setTotalpages] = useState(0);
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [pokemon, setPokemons] = useState([]);
+    const [endpoint, setEndpoint] = useState('https://pokeapi.co/api/v2/pokemon/');
+    const [error, toggleError] = useState(false);
+    const [loading, toggleLoading] = useState(false);
 
 
-    useEffect(()=> {
-        const controller= new AbortController()
+    useEffect(() => {
+        const controller = new AbortController()
 
-        async function fetchPokemonList() {
-
-
+        async function fetchData() {
+            toggleLoading(true);
+            toggleError(false);
 
             try {
-                setLoading(true);
-                const result = await axios.get(` https://pokeapi.co/api/v2/pokemon?offset=${(currentPage - 1) * 20}&limit=20`);
-                const pokemons = result.data.results;
-                const pokemonDetailsPromises = pokemons.map(pokemon => axios.get(pokemon.url));
-                const pokemonDetailsResults = await Promise.all(pokemonDetailsPromises);
-                const pokemonDetails = pokemonDetailsResults.map(response => response.data)
-
-                setPokemonList(pokemonDetails)
-
-                const totalPokemonCount = result.data.count;
-                const itemsPerPage = 20;
-                const totalPages = Math.ceil(totalPokemonCount / itemsPerPage);
-                setTotalpages(totalPages);
-
-                setError(null);
+                const {data} = await axios.get(endpoint, {
+                    signal: controller.signal,
+                });
+                setPokemons(data);
 
             } catch (error) {
-                console.error(error);
-                if (isMounted) {
-                    setError('Failed to fetch Pokémon. Please try again later.')
+                if (axios.isCancel(error)) {
+                    console.error('Request is canceled....')
+                } else {
+                    console.error(error);
+                    toggleError(true);
                 }
             } finally {
-                if (isMounted){
-                setLoading(false);
-            }
+                toggleLoading(false);
             }
         }
 
-        fetchPokemonList();
+        fetchData();
 
-        return function cleanup () {
+        return function cleanup() {
             controller.abort();
         }
 
-    },[currentPage]);
-
-
-    const handleNextPage= () => {
-        setCurrentPage(currentPage + 1);
-        localStorage.setItem('currentPage', currentPage +1);
-    };
-
-    const handlePreviousPage=() => {
-        setCurrentPage(currentPage-1);
-        localStorage.setItem('currentPage', currentPage -1);
-    };
-
-
+    }, [endpoint]);
 
     return (
-        <>
+        <div className="pokemon-overview">
             <header>
                 <img className="pokemon-logo" src="src/assets/pokemon-23-logo-png-transparent.png" alt="pokemon logo"/>
             </header>
-            {loading && <div> Loading .... </div>}
-            {error && <div style={{color: 'red'}}>{error}</div>}
-            <div className="button-section">
-                <Button type ="button" onClick={handlePreviousPage} disabled={currentPage===1}> Previous </Button>
-                <Button type ="button" onClick={handleNextPage} disabled={currentPage === totalPages} > Next </Button>
-            </div>
-            <section className="pokemon-overview">
-                {pokemonList.map((pokemon,index) => (
-                    <PokemonDetails key={index} pokemon= {pokemon}/>
-                    ))}
-            </section>
+            <div className="pokemon-deck">
+                {pokemon &&
+                    <>
+                        <section className="button-section">
+                            <Button type="button"
+                                    onClick={() => setEndpoint(pokemon.previous)}
+                                    disabled={!pokemon.previous}> Vorige
+                            </Button>
+                            <Button type="button"
+                                    onClick={() => setEndpoint(pokemon.next)}
+                                    disabled={!pokemon.next}> Next
+                            </Button>
+                        </section>
 
-        </>
+                        {pokemon.results && pokemon.results.map((pokemon) => {
+                            return <PokemonDetails key={pokemon.name} endpoint={pokemon.url}/>
+
+                        })}
+                    </>
+                }
+                {loading && <p> Loading .... </p>}
+                {pokemon.length === 0 && error && <p>Er ging iets mis bij het ophalen van de data...</p>}
+            </div>
+        </div>
     )
 }
-
-export default App
+export default App;
